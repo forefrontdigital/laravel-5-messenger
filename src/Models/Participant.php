@@ -21,7 +21,7 @@ class Participant extends Eloquent
      *
      * @var array
      */
-    protected $fillable = ['thread_id', 'user_id', 'last_read', 'starred'];
+    protected $fillable = ['thread_id', 'user_id', 'mute', 'archive', 'last_read', 'starred'];
 
     /**
      * The attributes that should be mutated to dates.

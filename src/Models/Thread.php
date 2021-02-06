@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use App\Image;
 
 class Thread extends Eloquent
 {
@@ -25,7 +26,7 @@ class Thread extends Eloquent
      *
      * @var array
      */
-    protected $fillable = ['subject', 'slug', 'start_date', 'end_date', 'max_participants', 'avatar'];
+    protected $fillable = ['admin_id', 'subject', 'slug', 'start_date', 'end_date', 'max_participants', 'name', 'avatar'];
 
     /**
      * The attributes that should be mutated to dates.
@@ -35,10 +36,10 @@ class Thread extends Eloquent
     protected $dates = ['deleted_at'];
 
     /**
-    * Internal cache for creator.
-    *
-    * @var null|Models::user()
-    */
+     * Internal cache for creator.
+     *
+     * @var null|Models::user()
+     */
     protected $creatorCache = null;
 
     /**
@@ -189,6 +190,28 @@ class Thread extends Eloquent
 
         return $query->join($participantsTable, $this->getQualifiedKeyName(), '=', $participantsTable . '.thread_id')
             ->where($participantsTable . '.user_id', $userId)
+            ->where($participantsTable . '.archive', 0)
+            ->where($participantsTable . '.deleted_at', null)
+            ->select($threadsTable . '.*');
+    }
+
+
+    /**
+     * Returns threads that the user is associated with and set to archive.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param int $userId
+     *
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeForUserArchive(Builder $query, $userId)
+    {
+        $participantsTable = Models::table('participants');
+        $threadsTable = Models::table('threads');
+
+        return $query->join($participantsTable, $this->getQualifiedKeyName(), '=', $participantsTable . '.thread_id')
+            ->where($participantsTable . '.user_id', $userId)
+            ->where($participantsTable . '.archive', 1)
             ->where($participantsTable . '.deleted_at', null)
             ->select($threadsTable . '.*');
     }
@@ -348,7 +371,7 @@ class Thread extends Eloquent
         $usersTable = Models::table('users');
         $userPrimaryKey = Models::user()->getKeyName();
 
-        if(empty($columns))
+        if (empty($columns))
             $columns = [config('chatmessenger.defaults.participant_aka')];
 
         $selectString = $this->createSelectString($columns);
@@ -396,18 +419,18 @@ class Thread extends Eloquent
         $usersTable = Models::table('users');
 
         switch ($dbDriver) {
-        case 'pgsql':
-        case 'sqlite':
-            $columnString = implode(" || ' ' || " . $tablePrefix . $usersTable . '.', $columns);
-            $selectString = '(' . $tablePrefix . $usersTable . '.' . $columnString . ') as name';
-            break;
-        case 'sqlsrv':
-            $columnString = implode(" + ' ' + " . $tablePrefix . $usersTable . '.', $columns);
-            $selectString = '(' . $tablePrefix . $usersTable . '.' . $columnString . ') as name';
-            break;
-        default:
-            $columnString = implode(", ' ', " . $tablePrefix . $usersTable . '.', $columns);
-            $selectString = 'concat(' . $tablePrefix . $usersTable . '.' . $columnString . ') as name';
+            case 'pgsql':
+            case 'sqlite':
+                $columnString = implode(" || ' ' || " . $tablePrefix . $usersTable . '.', $columns);
+                $selectString = '(' . $tablePrefix . $usersTable . '.' . $columnString . ') as name';
+                break;
+            case 'sqlsrv':
+                $columnString = implode(" + ' ' + " . $tablePrefix . $usersTable . '.', $columns);
+                $selectString = '(' . $tablePrefix . $usersTable . '.' . $columnString . ') as name';
+                break;
+            default:
+                $columnString = implode(", ' ', " . $tablePrefix . $usersTable . '.', $columns);
+                $selectString = 'concat(' . $tablePrefix . $usersTable . '.' . $columnString . ') as name';
         }
 
         return $selectString;
@@ -476,7 +499,7 @@ class Thread extends Eloquent
         }
         return false;
     }
-    
+
     /**
      * star/favourite a thread
      *
@@ -486,15 +509,15 @@ class Thread extends Eloquent
      */
     public function star($userId = null)
     {
-        if(! $userId)
+        if (!$userId)
             $userId = Auth::id();
-        
+
         return $this->participants()
             ->where('user_id', $userId)
             ->firstOrFail()
             ->update(['starred' => true]);
     }
-    
+
     /**
      * unstar/unfavourite a thread
      *
@@ -504,15 +527,15 @@ class Thread extends Eloquent
      */
     public function unstar($userId = null)
     {
-        if(! $userId)
+        if (!$userId)
             $userId = Auth::id();
-        
+
         return $this->participants()
             ->where('user_id', $userId)
             ->firstOrFail()
             ->update(['starred' => false]);
     }
-    
+
     /**
      * check if the thread has been starred
      *
@@ -522,13 +545,29 @@ class Thread extends Eloquent
      */
     public function getIsStarredAttribute($userId = null)
     {
-        if(! $userId)
+        if (!$userId)
             $userId = Auth::id();
-        
-        return !! $this->participants()
+
+        return !!$this->participants()
             ->where('user_id', $userId)
             ->firstOrFail()
             ->starred;
     }
-    
+
+
+    /**
+     * Get users profile picture.
+     *
+     * @return string
+     */
+    // public function getAvatar()
+    // {
+    //     if (isset($this->avatar)) {
+
+    //         $gsdd = Image::find($this->avatar)->image;
+    //         dd($gsdd);
+    //     } else {
+    //         return "/img/blank-profile-picture.png";
+    //     }
+    // }
 }
